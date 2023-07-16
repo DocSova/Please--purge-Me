@@ -2,7 +2,9 @@ PPM =
 {
     name            = "PPM",
     SavedVariables  = nil,
-    defaults        = {}
+    defaults        = {},
+    plaguedMembers  = {},
+    globalTimer     = 0
 }
 
 PPM.defaults  = {
@@ -77,9 +79,46 @@ local function IsGroupPlagued()
 	return false
 end
 
+local function savePlaguedPlayer(str)
+    local found = false
+    for _, value in pairs(PPM.plaguedMembers) do
+        if value == str then
+            found = true
+            break
+        end
+    end
+    
+    if not found then
+        table.insert(PPM.plaguedMembers, str)
+    end
+end
+
+local function removePlaguedPlayer(str)
+    for i, value in ipairs(PPM.plaguedMembers) do
+        if value == str then
+            table.remove(PPM.plaguedMembers, i)
+            break
+        end
+    end
+end
+
+-- GetFrameTimeSeconds()
+local function OnEffectChanged(eventCode, changeType, effectSlot, effectName, unitTag, beginTime, endTime, stackCount, iconName, buffType, effectType, abilityType, statusEffectType, unitName, unitId, abilityId, sourceUnitType)
+    if ((unitTag ~= "") and (unitTag ~= "reticleover") and (unitTag ~= "reticleoverplayer") and (unitTag ~= "reticleovertarget"))and (abilityId == 159612) then
+        d("Plague: endTime - "..endTime.." target - "..unitName.." sourceUnitType - "..sourceUnitType.." unittag - "..unitTag)
+        if (changeType == EFFECT_RESULT_GAINED) then
+            savePlaguedPlayer(unitName)
+            PPM.globalTimer = endTime
+        elseif (changeType == EFFECT_RESULT_FADED) then
+            removePlaguedPlayer(unitName)
+        end
+    end
+end
+
 local function mainLoop()
 	local texture = ""
-	if (IsGroupPlagued()) then
+    if (#PPM.plaguedMembers == 0) then PPM.globalTimer = 0 end
+	if (PPM.globalTimer - GetFrameTimeSeconds()) > 0 then
 		texture = "PPM/textures/cantPurge.dds"
 	else
 		texture = "PPM/textures/canPurge.dds"
@@ -93,9 +132,9 @@ local function onAddOnLoad(eventCode, addOnName)
     EVENT_MANAGER:UnregisterForEvent(PPM.name, EVENT_ADD_ON_LOADED)
 
     PPM.SavedVariables = ZO_SavedVars:NewAccountWide("PPMSV", 3, nil, PPM.defaults)
-
+    EVENT_MANAGER:RegisterForEvent("PPM_EFFECT_CHANGED", EVENT_EFFECT_CHANGED, OnEffectChanged)
     createUI()
-	mainLoop()
+    mainLoop()
 end
 
 EVENT_MANAGER:RegisterForEvent(PPM.name, EVENT_ADD_ON_LOADED, function(...) onAddOnLoad(...) end)
